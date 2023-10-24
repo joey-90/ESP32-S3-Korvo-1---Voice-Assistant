@@ -114,6 +114,7 @@ voice_assistant:
   noise_suppression_level: 4
   auto_gain: 10dBFS
   volume_multiplier: 1
+  use_wake_word: false
   on_listening:
     - light.turn_on:
         id: led_ring
@@ -177,6 +178,7 @@ switch:
     restore_mode: RESTORE_DEFAULT_ON
     entity_category: config
     on_turn_on:
+      - lambda: id(voice_asst).set_use_wake_word(true)
       - if:
           condition:
             not:
