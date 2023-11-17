@@ -3,28 +3,46 @@ substitutions:
 
 esphome:
   name: esphome-web-e19e00
+  min_version: 2023.11.0
   platformio_options:
     board_build.flash_mode: dio
   on_boot:
     - priority: -100
       then:
+        - light.turn_on:
+            id: led_ring
+            effect: power
+        - delay: 1s
+        - wait_until:
+            condition:
+              wifi.connected:
+        - light.turn_on:
+            id: led_ring
+            effect: Working
+            red: 0%
+            blue: 100%
+            green: 0%
         - wait_until: api.connected
+        - light.turn_on:
+            id: led_ring
+            effect: pulse
+            red: 0%
+            blue: 0%
+            green: 100%
         - delay: 1s
         - if:
             condition:
               switch.is_on: use_wake_word
             then:
               - voice_assistant.start_continuous:
+              - script.execute: reset_led
   
 esp32:
   board: esp32-s3-devkitc-1
   framework:
     type: esp-idf
     version: recommended
-    sdkconfig_options:
-      CONFIG_ESP32S3_DEFAULT_CPU_FREQ_240: "y"
-      CONFIG_ESP32S3_DATA_CACHE_64KB: "y"
-      CONFIG_ESP32S3_DATA_CACHE_LINE_64B: "y"
+
 
 external_components:
   - source: github://rpatel3001/esphome@es8311
@@ -68,7 +86,6 @@ i2c:
   sda: GPIO1
   scl: GPIO2
   scan: true
-  frequency: 400kHz
 
 es8311:
   address: 0x18
@@ -111,10 +128,10 @@ voice_assistant:
   id: voice_asst
   microphone: external_mic
   speaker: external_speaker
-  noise_suppression_level: 4
-  auto_gain: 10dBFS
+  noise_suppression_level: 0
+  auto_gain: 1dBFS
   volume_multiplier: 1
-  use_wake_word: false
+  use_wake_word: true
   on_listening:
     - light.turn_on:
         id: led_ring
@@ -158,17 +175,33 @@ script:
     then:
       - if:
           condition:
-            switch.is_on: use_wake_word
+            - switch.is_on: use_wake_word
+            - switch.is_on: use_listen_light
+            - switch.is_off: night_mode
           then:
             - light.turn_on:
                 id: led_ring
-                blue: 30%
+                blue: 100%
                 red: 0%
                 green: 0%
-                brightness: 25%
+                brightness: 80%
                 effect: none
           else:
-            - light.turn_off: led_ring
+            - if:
+                condition:
+                  - switch.is_on: use_wake_word
+                  - switch.is_on: use_listen_light
+                  - switch.is_on: night_mode
+                then:
+                  - light.turn_on:
+                      id: led_ring
+                      blue: 100%
+                      red: 0%
+                      green: 0%
+                      brightness: 30%
+                      effect: none
+                else:
+                  - light.turn_off: led_ring
 
 switch:
   - platform: template
@@ -188,6 +221,29 @@ switch:
       - script.execute: reset_led
     on_turn_off:
       - voice_assistant.stop
+      - script.execute: reset_led
+  
+  - platform: template
+    name: Use Listen Light
+    id: use_listen_light
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_ON
+    entity_category: config
+    on_turn_on:
+      - script.execute: reset_led
+    on_turn_off:
+      - script.execute: reset_led
+
+#night mode switch  
+  - platform: template
+    name: Night Mode Switch
+    id: night_mode
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_ON
+    entity_category: config
+    on_turn_on:
+      - script.execute: reset_led
+    on_turn_off:
       - script.execute: reset_led
 
 light:
@@ -217,6 +273,15 @@ light:
               blue: 0%
               num_leds: 12
           add_led_interval: 40ms
+          reverse: false
+      - addressable_color_wipe:
+          name: "Power"
+          colors:
+            - red: 100%
+              green: 0%
+              blue: 0%
+              num_leds: 12
+          add_led_interval: 50ms
           reverse: false
 
 binary_sensor:
